@@ -1,0 +1,5 @@
+# Ignorar temporários e testes
+test_*.html
+*.log
+.DS_Store
+Thumbs.db

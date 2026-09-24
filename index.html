@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mídia LEGENDÁRIOS Japan - Processador em Lote</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="stylesheet" href="style.css?v=12.8">
+  
+  <!-- Bibliotecas locais carregadas offline -->
+  <script src="jszip.min.js"></script>
+  <script src="exifr.js"></script>
+  <script src="heic-to.js"></script>
+  <script src="vision_bundle.js?v=8.8"></script>
+</head>
+<body>
+
+  <!-- Overlay global de arrastar arquivos -->
+  <div id="body-drag-overlay" class="body-drag-overlay">
+    <div class="drag-overlay-message">
+      <svg viewBox="0 0 24 24">
+        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+      </svg>
+      <span>Solte a pasta de fotos ou marcas d'água aqui!</span>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header principal compacto -->
+    <header>
+      <div class="logo-container">
+        <img src="logo.png" alt="Mídia LEGENDÁRIOS Japan" class="logo-header-badge">
+        <div class="logo-text">MÍDIA <span>LEGENDÁRIOS JAPAN</span></div>
+      </div>
+      <div class="header-center-stats" id="header-stats">
+        <span class="header-stat-pill" title="Total de fotos carregadas"><strong id="stat-total">0</strong> fotos</span>
+        <span class="header-stat-pill badge-v" title="Fotos em enquadramento vertical (4:5 / 9:16)"><strong id="stat-vert">0</strong> verticais</span>
+        <span class="header-stat-pill badge-h" title="Fotos em enquadramento horizontal (5:4 / 16:9)"><strong id="stat-horiz">0</strong> horizontais</span>
+        <span class="header-stat-pill" style="color:var(--success-color);" title="Fotos aprovadas prontas para exportação"><strong id="stat-processed">0</strong> aprovadas</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span id="mp-status-badge" style="display: none;">MediaPipe: Pronto</span>
+        <a id="btn-download-offline" class="btn-download-offline" href="midia-legendarios-offline.zip" download="midia-legendarios-offline.zip" title="Baixar pacote completo para rodar no PC sem precisar de internet" style="display: none;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Baixar Versão Offline (PC)</span>
+        </a>
+        <button id="btn-open-settings" class="btn-settings-header" title="Ajustes finos do motor de inteligência artificial">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Motor de IA</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Workspace principal -->
+    <div class="workspace">
+      <!-- Painel Esquerdo (Controles e Estatísticas) -->
+      <div class="sidebar">
+        <!-- Painel de Configurações -->
+        <div class="panel">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Configurações
+          </div>
+
+          <!-- Marcas d'água ACIMA do botão processar -->
+          <div class="form-group" style="margin-bottom: 15px;">
+            <label style="font-size: 13px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <span style="display: flex; align-items: center; gap: 6px;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                Marcas d'Água
+              </span>
+              <span style="font-size: 10.5px; color: var(--text-muted); font-weight: 500;">PNG Transparente</span>
+            </label>
+
+            <!-- Botão de Criação Automática -->
+            <button type="button" id="btn-open-wm-generator" class="wm-gen-trigger-btn" onclick="window.openWatermarkGenerator ? window.openWatermarkGenerator() : (document.getElementById('wm-generator-modal').style.display='flex')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span>✨ Gerar Marcas d'Água</span>
+            </button>
+
+            <div class="wm-list" style="display: flex; flex-direction: column; gap: 7px;">
+              
+              <!-- 1ª: Post vertical (4:5) -->
+              <div class="wm-row-item" id="wm-badge-vertical" title="Carregar PNG vertical (3648 x 4560 px)">
+                <div class="wm-row-info">
+                  <span class="status-dot"></span>
+                  <div class="wm-thumb-box" id="wm-thumb-box-vertical" style="display:none;" title="Miniatura da marca d'água">
+                    <img id="wm-thumb-img-vertical" class="wm-thumb-img" alt="WM">
+                  </div>
+                  <div class="wm-row-texts">
+                    <div class="wm-row-title">Post vertical <span class="wm-ratio-tag">4:5</span></div>
+                    <div class="wm-filename-tag" id="wm-label-vertical">Não carregada</div>
+                  </div>
+                </div>
+                <div class="wm-row-actions">
+                  <label for="input-wm-vertical" class="wm-small-btn" title="Subir arquivo de marca d'água">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Subir</span>
+                  </label>
+                  <button type="button" class="wm-delete-btn" id="btn-del-wm-vertical" title="Excluir esta marca d'água">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Excluir</span>
+                  </button>
+                </div>
+                <input type="file" id="input-wm-vertical" accept="image/png" style="display:none;">
+              </div>
+
+              <!-- 2ª: Post horizontal (5:4) -->
+              <div class="wm-row-item" id="wm-badge-horizontal" title="Carregar PNG horizontal (4560 x 3648 px)">
+                <div class="wm-row-info">
+                  <span class="status-dot"></span>
+                  <div class="wm-thumb-box" id="wm-thumb-box-horizontal" style="display:none;" title="Miniatura da marca d'água">
+                    <img id="wm-thumb-img-horizontal" class="wm-thumb-img" alt="WM">
+                  </div>
+                  <div class="wm-row-texts">
+                    <div class="wm-row-title">Post horizontal <span class="wm-ratio-tag">5:4</span></div>
+                    <div class="wm-filename-tag" id="wm-label-horizontal">Não carregada</div>
+                  </div>
+                </div>
+                <div class="wm-row-actions">
+                  <label for="input-wm-horizontal" class="wm-small-btn" title="Subir arquivo de marca d'água">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Subir</span>
+                  </label>
+                  <button type="button" class="wm-delete-btn" id="btn-del-wm-horizontal" title="Excluir esta marca d'água">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Excluir</span>
+                  </button>
+                </div>
+                <input type="file" id="input-wm-horizontal" accept="image/png" style="display:none;">
+              </div>
+
+              <!-- 3ª: Story (9:16) -->
+              <div class="wm-row-item" id="wm-badge-reels" title="Carregar PNG Story / Reels (2565 x 4560 px)">
+                <div class="wm-row-info">
+                  <span class="status-dot"></span>
+                  <div class="wm-thumb-box" id="wm-thumb-box-reels" style="display:none;" title="Miniatura da marca d'água">
+                    <img id="wm-thumb-img-reels" class="wm-thumb-img" alt="WM">
+                  </div>
+                  <div class="wm-row-texts">
+                    <div class="wm-row-title">Story <span class="wm-ratio-tag">9:16</span></div>
+                    <div class="wm-filename-tag" id="wm-label-reels">Não carregada</div>
+                  </div>
+                </div>
+                <div class="wm-row-actions">
+                  <label for="input-wm-reels" class="wm-small-btn" title="Subir arquivo de marca d'água">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Subir</span>
+                  </label>
+                  <button type="button" class="wm-delete-btn" id="btn-del-wm-reels" title="Excluir esta marca d'água">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Excluir</span>
+                  </button>
+                </div>
+                <input type="file" id="input-wm-reels" accept="image/png" style="display:none;">
+              </div>
+
+              <!-- 4ª: Widescreen (16:9) -->
+              <div class="wm-row-item" id="wm-badge-wide" title="Carregar PNG Widescreen (4560 x 2565 px)">
+                <div class="wm-row-info">
+                  <span class="status-dot"></span>
+                  <div class="wm-thumb-box" id="wm-thumb-box-wide" style="display:none;" title="Miniatura da marca d'água">
+                    <img id="wm-thumb-img-wide" class="wm-thumb-img" alt="WM">
+                  </div>
+                  <div class="wm-row-texts">
+                    <div class="wm-row-title">Widescreen <span class="wm-ratio-tag">16:9</span></div>
+                    <div class="wm-filename-tag" id="wm-label-wide">Não carregada</div>
+                  </div>
+                </div>
+                <div class="wm-row-actions">
+                  <label for="input-wm-wide" class="wm-small-btn" title="Subir arquivo de marca d'água">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Subir</span>
+                  </label>
+                  <button type="button" class="wm-delete-btn" id="btn-del-wm-wide" title="Excluir esta marca d'água">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <span>Excluir</span>
+                  </button>
+                </div>
+                <input type="file" id="input-wm-wide" accept="image/png" style="display:none;">
+              </div>
+
+            </div>
+          </div>
+
+          <hr style="border-color: var(--panel-border); margin: 5px 0 15px;">
+
+          <div class="form-group">
+            <label for="export-base-name">Nome Base do Arquivo</label>
+            <input type="text" id="export-base-name" class="form-control" placeholder="Ex: TOP1001_A_D1" value="TOP1001_A_D1" style="font-size: 16px; font-weight: 700; letter-spacing: 0.5px;">
+
+            <!-- Presets Rápidos de Nomenclatura (Dias e Fotógrafo) -->
+            <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px; background: rgba(255,255,255,0.02); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Dia do Evento:</span>
+                <div id="chips-days" style="display: flex; gap: 4px;">
+                  <button type="button" class="chip-btn" data-day="D1">D1</button>
+                  <button type="button" class="chip-btn" data-day="D2">D2</button>
+                  <button type="button" class="chip-btn" data-day="D3">D3</button>
+                  <button type="button" class="chip-btn" data-day="D4">D4</button>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Inicial Fotógrafo:</span>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                  <input type="text" id="input-photog-initial" maxlength="4" placeholder="Ex: K" style="width: 80px; text-transform: uppercase; text-align: center; font-weight: 700; font-size: 13px; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.18); color: #7ec8e3; border-radius: 6px; padding: 4px 8px; font-family: inherit;">
+                </div>
+              </div>
+            </div>
+
+            <!-- Instrução visual de nomenclatura -->
+            <div style="margin-top: 10px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.10);">
+
+              <!-- Exemplo colorido -->
+              <div style="background: rgba(255,255,255,0.05); padding: 10px 12px; font-size: 20px; font-weight: 800; letter-spacing: 1px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                <span style="color: var(--accent-color);">TOP</span><span style="color: #e2c97e;">1001</span><span style="color: rgba(255,255,255,0.25);">_</span><span id="preview-chip-photog" style="color: #7ec8e3;">A</span><span style="color: rgba(255,255,255,0.25);">_</span><span id="preview-chip-day" style="color: #b5e3a1;">D1</span>
+              </div>
+
+              <!-- Legenda linha a linha -->
+              <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; font-size: 12px;">
+
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span style="color: var(--accent-color); font-weight: 800; font-size: 14px; min-width: 38px;">TOP</span>
+                  <span style="color: var(--text-secondary);">Prefixo fixo</span>
+                </div>
+
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span style="color: #e2c97e; font-weight: 800; font-size: 14px; min-width: 38px;">1001</span>
+                  <span style="color: var(--text-secondary);">Número do TOP</span>
+                </div>
+
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span id="preview-legend-photog" style="color: #7ec8e3; font-weight: 800; font-size: 14px; min-width: 38px;">A</span>
+                  <span style="color: var(--text-secondary);">Inicial do nome do fotógrafo</span>
+                </div>
+
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span id="preview-legend-day" style="color: #b5e3a1; font-weight: 800; font-size: 14px; min-width: 38px;">D1</span>
+                  <span style="color: var(--text-secondary);">Dia do evento <span style="color: var(--text-muted);">(D1 a D4)</span></span>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <button id="btn-start-process" class="btn btn-primary" disabled style="margin-top: 10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Processar Fotos
+          </button>
+        </div>
+      </div>
+
+      <!-- Painel Direito (Workspace e Visualização) -->
+      <div class="main-content">
+        <!-- Área de Drag & Drop Padrão -->
+        <div id="dropzone-photos" class="dropzone-panel">
+          <input type="file" id="input-folder-picker" class="hidden-file-input" webkitdirectory directory multiple>
+          <input type="file" id="input-files-picker" class="hidden-file-input" accept=".jpg,.jpeg,.png,.cr2,.nef,.arw,.dng,.pef,.orf,.rw2,.raf,.heic,.heif,.cr3" multiple>
+          <input type="file" id="input-files-append" class="hidden-file-input" accept=".jpg,.jpeg,.png,.cr2,.nef,.arw,.dng,.pef,.orf,.rw2,.raf,.heic,.heif,.cr3" multiple>
+          
+          <div class="dropzone-icon">
+            <svg viewBox="0 0 24 24">
+              <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/>
+            </svg>
+          </div>
+          
+          <div class="dropzone-text">
+            <h3>Arraste uma pasta de fotos ou arquivos JPEG aqui</h3>
+            <p>Ou clique para selecionar uma <a href="#" id="link-choose-folder">Pasta</a> ou <a href="#" id="link-choose-files">Arquivos Individuais</a></p>
+          </div>
+        </div>
+
+        <!-- Barra de Progresso do Processamento -->
+        <div id="progress-panel" class="progress-panel">
+          <div class="progress-header">
+            <span id="progress-status-text">Processando imagens...</span>
+            <span id="progress-percent">0%</span>
+          </div>
+          <div class="progress-track">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
+          <div class="progress-stats">
+            <span id="progress-speed">Velocidade: -- img/s</span>
+            <span id="progress-eta">Tempo restante: --</span>
+          </div>
+        </div>
+
+        <!-- Grade de Miniaturas / Visualização -->
+        <div id="grid-container" class="grid-container">
+          <div class="grid-header">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <h3 style="margin:0;">Fotos do Lote</h3>
+              <div class="grid-zoom-controls" title="Ajustar tamanho das miniaturas">
+                <button type="button" id="btn-zoom-grid-out" class="grid-zoom-btn" title="Diminuir miniaturas">-</button>
+                <span id="grid-zoom-label">180px</span>
+                <button type="button" id="btn-zoom-grid-in" class="grid-zoom-btn" title="Aumentar miniaturas">+</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <button id="btn-add-photos" title="Adicionar mais fotos ao lote atual" style="
+                display:flex; align-items:center; gap:5px;
+                background:rgba(255,102,0,0.08); border:1px solid rgba(255,102,0,0.30);
+                color:var(--accent-color); border-radius:7px; padding:6px 13px;
+                font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+                transition:background 0.2s;
+              " onmouseover="this.style.background='rgba(255,102,0,0.18)'" onmouseout="this.style.background='rgba(255,102,0,0.08)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Adicionar Fotos
+              </button>
+              <button id="btn-clear-batch" title="Limpar todas as fotos deste lote e voltar para a tela inicial" style="
+                display:flex; align-items:center; gap:5px;
+                background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15);
+                color:var(--text-secondary); border-radius:7px; padding:6px 13px;
+                font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+                transition:background 0.2s, border-color 0.2s, color 0.2s;
+              " onmouseover="this.style.background='rgba(220,53,69,0.1)'; this.style.borderColor='rgba(220,53,69,0.4)'; this.style.color='#ff4466'" onmouseout="this.style.background='rgba(255,255,255,0.06)'; this.style.borderColor='rgba(255,255,255,0.15)'; this.style.color='var(--text-secondary)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                Limpar Lote
+              </button>
+              <button id="btn-eliminate-filtered" title="Eliminar da lista todas as fotos da aba atual" style="
+                display:flex; align-items:center; gap:5px;
+                background:rgba(220,53,69,0.08); border:1px solid rgba(220,53,69,0.30);
+                color:#ff4466; border-radius:7px; padding:6px 13px;
+                font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+                transition:background 0.2s;
+              " onmouseover="this.style.background='rgba(220,53,69,0.18)'" onmouseout="this.style.background='rgba(220,53,69,0.08)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Eliminar Filtradas
+              </button>
+              <button id="btn-approve-filtered" title="Aprovar todas as fotos da aba atual" style="
+                display:flex; align-items:center; gap:5px;
+                background:rgba(0,204,102,0.08); border:1px solid rgba(0,204,102,0.30);
+                color:#00cc66; border-radius:7px; padding:6px 13px;
+                font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+                transition:background 0.2s;
+              " onmouseover="this.style.background='rgba(0,204,102,0.18)'" onmouseout="this.style.background='rgba(0,204,102,0.08)'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                Aprovar Filtradas
+              </button>
+              <div class="tabs">
+                <div class="tab active" id="tab-all">Todas <span class="tab-badge" id="badge-all">0</span></div>
+                <div class="tab" id="tab-pending">A Aprovar <span class="tab-badge" id="badge-pending">0</span></div>
+                <div class="tab" id="tab-review">Revisão <span class="tab-badge" id="badge-review-tab">0</span></div>
+                <div class="tab" id="tab-done">Aprovadas <span class="tab-badge" id="badge-done">0</span></div>
+                <div class="tab" id="tab-rejected">Reprovadas <span class="tab-badge" id="badge-rejected-tab">0</span></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Miniaturas -->
+          <div class="thumbnails-grid" id="thumbnails-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Interativo de Revisão Manual / Ajuste de Crop -->
+  <div class="modal-overlay" id="editor-modal">
+    <div class="modal-container">
+      <!-- Área do Canvas de Edição -->
+      <div class="editor-workspace">
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="editor-canvas"></canvas>
+          
+          <!-- Linhas de sobreposição da Regra dos Terços -->
+          <div class="thirds-overlay" id="editor-thirds">
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell glow-target" title="Alinhe os rostos/olhos aqui no terço superior"></div>
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell"></div>
+            <div class="thirds-cell"></div>
+          </div>
+          
+          <!-- Escurecedores visuais das áreas que serão cortadas -->
+          <div class="crop-overlay-dimmer" id="crop-dimmer-top"></div>
+          <div class="crop-overlay-dimmer" id="crop-dimmer-bottom"></div>
+          <div class="crop-overlay-dimmer" id="crop-dimmer-left"></div>
+          <div class="crop-overlay-dimmer" id="crop-dimmer-right"></div>
+        </div>
+      </div>
+
+      <!-- Barra Lateral de Controles do Editor -->
+      <div class="editor-sidebar">
+        <div class="editor-header">
+          <div class="editor-info" style="flex:1; min-width:0;">
+            <h4 id="editor-filename" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">foto_0001.jpg</h4>
+            <div style="display:flex; align-items:center; gap:6px; margin-top:2px; flex-wrap:wrap;">
+              <span id="editor-orientation-badge" class="badge-v">Retrato 4:5</span>
+              <span id="editor-approved-badge" style="display:none; background:rgba(0,204,102,0.15); border:1px solid rgba(0,204,102,0.5); color:#00cc66; font-size:10px; font-weight:700; padding:1px 7px; border-radius:4px; text-transform:uppercase; letter-spacing:0.3px;">&#10003; Aprovada</span>
+              <span id="editor-counter" style="font-size:11px; color:var(--text-muted); font-weight:500;">1 de 1</span>
+            </div>
+          </div>
+          <button class="close-modal" id="btn-close-editor">&times;</button>
+        </div>
+
+        <div class="editor-controls">
+          <!-- Painel de análise automática compactado -->
+          <div id="auto-analysis-box" style="
+            background: rgba(255,102,0,0.04);
+            border: 1px solid rgba(255,102,0,0.2);
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin: 2px 0 6px 0;
+            font-size: 11px;
+            line-height: 1.6;
+          ">
+            <div style="font-weight:700; color:var(--accent-color); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; font-size:10px;">⚡ Análise Automática</div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:var(--text-secondary);">Zoom aplicado</span>
+              <span id="auto-zoom-display" style="font-weight:600; color:#fff;">—</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:var(--text-secondary);">Rotação aplicada</span>
+              <span id="auto-rotate-display" style="font-weight:600; color:#fff;">—</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:var(--text-secondary);">Pessoas detectadas</span>
+              <span id="auto-faces-display" style="font-weight:600; color:#fff;">—</span>
+            </div>
+            <div id="auto-rejection-row" style="display:none; justify-content:space-between; align-items:center; border-top: 1px dashed rgba(255,51,51,0.3); margin-top: 4px; padding-top: 4px;">
+              <span style="color:#ff3333; font-weight: 600;">Qualidade</span>
+              <span id="auto-rejection-display" style="font-weight:600; color:#ff3333;">—</span>
+            </div>
+          </div>
+
+          <!-- Botões para alternar enquadramento e aspect ratio -->
+          <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+            <button class="btn btn-secondary" id="btn-toggle-orientation" style="flex: 1; padding: 6px 4px; font-size: 10px; margin-bottom: 0;" title="Alternar entre orientação Horizontal e Vertical">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right: 3px; vertical-align: middle;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 17L17 9M9 9h8v8"/></svg>
+              Girar Enquadramento
+            </button>
+            <button class="btn btn-secondary" id="btn-toggle-special-ratio" style="flex: 1; padding: 6px 4px; font-size: 10px; margin-bottom: 0;" title="Alternar entre proporção clássica (4:5/5:4) e proporção de Reels/Widescreen (9:16/16:9)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right: 3px; vertical-align: middle;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              Aspecto Reels/Wide
+            </button>
+          </div>
+
+          <!-- Botão para alternar visualização da marca d'água -->
+          <button class="btn btn-secondary" id="btn-toggle-wm-overlay" style="width: 100%; margin-bottom: 6px; padding: 6px 8px; font-size: 10.5px; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Alternar visualização da marca d'água (Atalho: W ou Espaço)">
+            <svg id="toggle-wm-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span id="toggle-wm-text">Ocultar Marca d'Água (W)</span>
+          </button>
+
+          <!-- Color Grading Automático compactado -->
+          <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--panel-border); padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; flex-direction: row; gap: 0;">
+            <label for="editor-color-grading" style="margin: 0; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 10px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--accent-color);"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 18a6 6 0 1 0 0-12v12z"/></svg>
+              Color Grading Automático
+            </label>
+            <input type="checkbox" id="editor-color-grading" checked style="width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent-color);">
+          </div>
+
+          <!-- Slider de Zoom -->
+          <div class="form-group">
+            <label for="editor-zoom">Zoom / Escala <span id="zoom-auto-tag" style="font-size:10px; color:var(--accent-color); font-weight:600;"></span></label>
+            <div class="slider-container">
+              <input type="range" id="editor-zoom" min="1" max="3" step="0.01" value="1">
+              <span class="slider-val" id="editor-zoom-val">1.00x</span>
+            </div>
+          </div>
+
+          <!-- Slider de Rotação -->
+          <div class="form-group">
+            <label for="editor-rotate">Rotação / Alinhamento <span id="rotate-auto-tag" style="font-size:10px; color:var(--accent-color); font-weight:600;"></span></label>
+            <div class="slider-container">
+              <input type="range" id="editor-rotate" min="-45" max="45" step="0.5" value="0">
+              <span class="slider-val" id="editor-rotate-val">0.0°</span>
+            </div>
+          </div>
+
+          <!-- Divisor para Ajustes de Imagem -->
+          <div style="border-top: 1px solid var(--panel-border); margin: 15px 0 10px 0; padding-top: 10px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.5px; margin-bottom: 8px;">Ajustes de Cor e Exposição</div>
+          </div>
+
+          <!-- Slider de Brilho / Exposição -->
+          <div class="form-group">
+            <label for="editor-brightness">Exposição / Brilho</label>
+            <div class="slider-container">
+              <input type="range" id="editor-brightness" min="-50" max="100" step="1" value="0">
+              <span class="slider-val" id="editor-brightness-val">0</span>
+            </div>
+          </div>
+
+          <!-- Slider de Contraste -->
+          <div class="form-group">
+            <label for="editor-contrast">Contraste</label>
+            <div class="slider-container">
+              <input type="range" id="editor-contrast" min="-50" max="50" step="1" value="0">
+              <span class="slider-val" id="editor-contrast-val">0</span>
+            </div>
+          </div>
+
+          <!-- Slider de Saturação -->
+          <div class="form-group">
+            <label for="editor-saturation">Saturação</label>
+            <div class="slider-container">
+              <input type="range" id="editor-saturation" min="-50" max="50" step="1" value="0">
+              <span class="slider-val" id="editor-saturation-val">0</span>
+            </div>
+          </div>
+
+          <!-- Botão Aplicar Cores em Todas as Fotos -->
+          <button type="button" id="btn-apply-color-to-all" class="btn btn-secondary" style="width: 100%; margin-top: 4px; padding: 6px 8px; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;" title="Copiar estes ajustes de cor (brilho, contraste e saturação) para todas as fotos da sessão">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+            <span>Aplicar Cores em Todas as Fotos</span>
+          </button>
+        </div>
+
+        <!-- Ações do Editor -->
+        <div class="editor-actions">
+          <button class="btn btn-primary" id="btn-approve-crop">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+            Aprovar Foto
+          </button>
+
+          <div class="action-row" style="gap:6px;">
+            <button class="btn-reject-crop" id="btn-reject-crop" title="Marcar como reprovada e avançar para a próxima foto">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Reprovar
+            </button>
+            <button class="btn-delete-photo" id="btn-delete-photo" title="Excluir esta foto do lote permanentemente">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Excluir
+            </button>
+          </div>
+
+          <label id="editor-faces-toggle-label" for="editor-show-faces" style="
+            display: flex; align-items: center; gap: 10px;
+            padding: 7px 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 7px;
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 2px;
+          ">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; color: var(--text-secondary);"><circle cx="12" cy="8" r="4"/><path d="M2 20c0-4 4-7 10-7s10 3 10 7"/></svg>
+            <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500; flex: 1;">Rostos Detectados</span>
+            <!-- Toggle track -->
+            <span id="editor-faces-track" style="
+              display: inline-block; width: 32px; height: 17px;
+              background: rgba(255,255,255,0.1); border-radius: 99px;
+              position: relative; transition: background 0.2s; flex-shrink:0;
+            ">
+              <span id="editor-faces-thumb" style="
+                position: absolute; top: 2px; left: 2px;
+                width: 13px; height: 13px; border-radius: 50%;
+                background: #666; transition: transform 0.2s, background 0.2s;
+              "></span>
+            </span>
+            <input type="checkbox" id="editor-show-faces" style="display:none;">
+          </label>
+          
+          <div class="action-row">
+            <button class="btn btn-secondary" id="btn-prev-crop" title="Voltar para a foto anterior">
+              Anterior
+            </button>
+            <button class="btn btn-secondary" id="btn-next-crop" title="Pular esta foto sem salvar">
+              Próximo
+            </button>
+          </div>
+
+          <button class="btn btn-back-grid" id="btn-back-to-grid" title="Fechar editor e voltar para a grade de fotos">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:5px;">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Voltar à Grade
+          </button>
+          
+          <div style="font-size: 11px; text-align: center; color: var(--text-muted); margin-top: 5px;">
+            Atalhos: <span class="kbd-shortcut">Enter</span> Salva | <span class="kbd-shortcut">&larr;</span> / <span class="kbd-shortcut">&rarr;</span> Navega | <span class="kbd-shortcut">W</span> / <span class="kbd-shortcut">Espaço</span> Marca d'Água
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Configurações Avançadas do Motor de IA (v9.0 — tipografia grande) -->
+  <div class="modal-overlay" id="settings-modal" style="display:none; z-index:5000;">
+    <div class="settings-modal-box">
+
+      <!-- Header do modal -->
+      <div class="settings-modal-header">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <div>
+            <div style="font-weight:800; font-size:17px; color:#fff; letter-spacing:0.2px;">Configurações do Motor de IA</div>
+            <div style="font-size:13px; color:var(--text-muted); margin-top:3px;">Ajustes finos de detecção, composição e qualidade</div>
+          </div>
+        </div>
+        <button id="btn-close-settings" class="settings-close-btn" title="Fechar">&times;</button>
+      </div>
+
+      <!-- Corpo rolável -->
+      <div class="settings-modal-body">
+
+        <!-- ─── SEÇÃO 1: Detecção de Sujeito ─── -->
+        <div class="settings-section-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Detecção de Sujeito
+        </div>
+
+        <div class="settings-sliders-group">
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Confiança mínima de Pose (Corpo)</label>
+              <span id="cfg-pose-confidence-val" class="settings-value">0.20</span>
+            </div>
+            <div class="settings-desc">Limiar para detectar corpo humano. Valores baixos detectam mais, mas podem gerar falsos positivos na cena.</div>
+            <input type="range" id="cfg-pose-confidence" min="0.05" max="0.80" step="0.05" value="0.20" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Confiança mínima de Face (Rosto)</label>
+              <span id="cfg-face-confidence-val" class="settings-value">0.20</span>
+            </div>
+            <div class="settings-desc">Limiar para o detector de rostos BlazeFace. Afeta somente lotes carregados após salvar as configurações.</div>
+            <input type="range" id="cfg-face-confidence" min="0.05" max="0.80" step="0.05" value="0.20" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Visibilidade mínima de Ponto Anatômico</label>
+              <span id="cfg-landmark-vis-val" class="settings-value">0.45</span>
+            </div>
+            <div class="settings-desc">Pontos do esqueleto com confiança abaixo deste valor são ignorados no cálculo do enquadramento.</div>
+            <input type="range" id="cfg-landmark-vis" min="0.10" max="0.80" step="0.05" value="0.45" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Filtro de Confiança de Pose (Composição)</label>
+              <span id="cfg-pose-filter-val" class="settings-value">0.25</span>
+            </div>
+            <div class="settings-desc">Poses com confiança abaixo deste valor são descartadas antes de calcular o enquadramento automático.</div>
+            <input type="range" id="cfg-pose-filter" min="0.05" max="0.70" step="0.05" value="0.25" class="settings-range">
+          </div>
+
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- ─── SEÇÃO 2: Composição e Zoom ─── -->
+        <div class="settings-section-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          Composição e Zoom Automático
+        </div>
+
+        <div class="settings-sliders-group">
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Zoom máximo — Retrato Individual</label>
+              <span id="cfg-zoom-solo-val" class="settings-value">1.25x</span>
+            </div>
+            <div class="settings-desc">Limite de zoom automático quando há apenas uma pessoa na foto.</div>
+            <input type="range" id="cfg-zoom-solo" min="1.00" max="2.00" step="0.05" value="1.25" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Zoom máximo — Grupo / Múltiplas Pessoas</label>
+              <span id="cfg-zoom-group-val" class="settings-value">1.15x</span>
+            </div>
+            <div class="settings-desc">Limite de zoom quando mais de uma pessoa é detectada — conservador para evitar cortes nos sujeitos das pontas.</div>
+            <input type="range" id="cfg-zoom-group" min="1.00" max="2.00" step="0.05" value="1.15" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Alvo de altura do sujeito na foto</label>
+              <span id="cfg-subject-height-val" class="settings-value">75%</span>
+            </div>
+            <div class="settings-desc">A altura do corpo do sujeito será ajustada para ocupar esta porcentagem da altura do enquadramento.</div>
+            <input type="range" id="cfg-subject-height" min="30" max="100" step="5" value="75" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Posição vertical do rosto (terço superior)</label>
+              <span id="cfg-face-third-val" class="settings-value">33%</span>
+            </div>
+            <div class="settings-desc">Percentual do topo onde os olhos/rosto serão alinhados. 33% = linha do terço superior clássico.</div>
+            <input type="range" id="cfg-face-third" min="15" max="50" step="1" value="33" class="settings-range">
+          </div>
+
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- ─── SEÇÃO 3: Controle de Qualidade ─── -->
+        <div class="settings-section-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Controle de Qualidade — Rejeição Automática
+        </div>
+
+        <div class="settings-sliders-group">
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Limiar de Nitidez (anti-blur)</label>
+              <span id="cfg-blur-threshold-val" class="settings-value">30</span>
+            </div>
+            <div class="settings-desc">Variância Laplaciana mínima. Fotos abaixo deste valor são marcadas como desfocadas. Diminua para ser mais permissivo.</div>
+            <input type="range" id="cfg-blur-threshold" min="5" max="100" step="5" value="30" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Limiar de Subexposição (muito escuro)</label>
+              <span id="cfg-dark-threshold-val" class="settings-value">18</span>
+            </div>
+            <div class="settings-desc">Luminância média mínima (0–255). Fotos com luminância abaixo deste valor são rejeitadas por escuridão.</div>
+            <input type="range" id="cfg-dark-threshold" min="0" max="60" step="2" value="18" class="settings-range">
+          </div>
+
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label">Limiar de Superexposição (muito claro)</label>
+              <span id="cfg-bright-threshold-val" class="settings-value">232</span>
+            </div>
+            <div class="settings-desc">Luminância média máxima (0–255). Fotos com luminância acima deste valor são rejeitadas por superexposição.</div>
+            <input type="range" id="cfg-bright-threshold" min="180" max="255" step="2" value="232" class="settings-range">
+          </div>
+
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- ─── SEÇÃO 4: Detecção de Rosto ─── -->
+        <div class="settings-section-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          Detecção de Rosto (FaceDetector)
+        </div>
+
+        <div class="settings-sliders-group">
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label" for="cfg-face-detection-enabled">Ativar Detecção de Rosto</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
+                <span id="cfg-face-detection-label" style="font-size:13px; font-weight:600; color:var(--text-muted);">Desativado</span>
+                <div id="cfg-face-toggle-track" style="
+                  width:44px; height:24px; border-radius:12px;
+                  background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);
+                  position:relative; cursor:pointer; transition:background 0.25s;
+                ">
+                  <div id="cfg-face-toggle-thumb" style="
+                    width:18px; height:18px; border-radius:50%;
+                    background:#888; position:absolute;
+                    top:2px; left:3px;
+                    transition:left 0.25s, background 0.25s;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.5);
+                  "></div>
+                </div>
+                <input type="checkbox" id="cfg-face-detection-enabled" style="display:none;">
+              </label>
+            </div>
+            <div class="settings-desc">Quando ativado, o FaceDetector BlazeFace é usado como fallback se o detector de pose não encontrar corpos. Desativado por padrão para melhor desempenho.</div>
+          </div>
+        </div>
+
+        <hr class="settings-divider">
+
+        <!-- ─── SEÇÃO 5: Visualização ─── -->
+        <div class="settings-section-header">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><circle cx="12" cy="12" r="3"/></svg>
+          Visualização no Editor
+        </div>
+
+        <div class="settings-sliders-group">
+          <div class="settings-slider-item">
+            <div class="settings-slider-top">
+              <label class="settings-label" for="cfg-show-annotations">Exibir Marcações de Pessoas (Esqueleto/Caixa)</label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; flex-shrink:0;">
+                <span id="cfg-annotations-label" style="font-size:13px; font-weight:600; color:var(--text-muted);">Desativado</span>
+                <div id="cfg-annotations-toggle-track" style="
+                  width:44px; height:24px; border-radius:12px;
+                  background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);
+                  position:relative; cursor:pointer; transition:background 0.25s;
+                ">
+                  <div id="cfg-annotations-toggle-thumb" style="
+                    width:18px; height:18px; border-radius:50%;
+                    background:#888; position:absolute;
+                    top:2px; left:3px;
+                    transition:left 0.25s, background 0.25s;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.5);
+                  "></div>
+                </div>
+                <input type="checkbox" id="cfg-show-annotations" style="display:none;">
+              </label>
+            </div>
+            <div class="settings-desc">Quando ativado, exibe as caixas de detecção e linhas do esqueleto (MediaPipe) sobre a foto no editor. Desativado por padrão.</div>
+          </div>
+        </div>
+
+      </div>
+      <!-- /corpo rolável -->
+
+      <!-- Footer com ações -->
+      <div class="settings-modal-footer">
+        <button id="btn-settings-reset" class="settings-btn-reset">↺ Restaurar Padrões</button>
+        <button id="btn-settings-save" class="settings-btn-save">✓ Salvar Configurações</button>
+      </div>
+
+    </div>
+  </div>
+  <!-- (old modal removed) -->
+
+  <!-- Modal do Gerador Automático de Marcas d'Água -->
+  <div class="modal-overlay" id="wm-generator-modal" style="display:none; z-index:7000;">
+    <div class="settings-modal-box wm-gen-modal-box">
+      
+      <!-- Header do Modal -->
+      <div class="settings-modal-header" style="background: linear-gradient(90deg, rgba(255,102,0,0.08), rgba(255,51,0,0.02));">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="
+            width: 36px; height: 36px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--accent-color), #ff3300);
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 15px var(--accent-glow); flex-shrink: 0;
+          ">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </div>
+          <div>
+            <div style="font-weight:800; font-size:17px; color:#fff; letter-spacing:0.2px;">Gerador Automático de Marcas d'Água</div>
+            <div style="font-size:12.5px; color:var(--text-muted); margin-top:2px;">Cria as 4 resoluções (4:5, 5:4, 9:16 e 16:9) alinhadas e prontas sem precisar do Canva</div>
+          </div>
+        </div>
+        <button id="btn-close-wm-gen" class="settings-close-btn" title="Fechar">&times;</button>
+      </div>
+
+      <!-- Corpo do Modal com duas colunas -->
+      <div class="wm-gen-body-layout">
+        
+        <!-- Coluna Esquerda: Formulário -->
+        <div class="wm-gen-form-col">
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="wm-input-event-num" style="font-weight: 700;">Número do TOP</label>
+            <div style="position: relative;">
+              <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--accent-color); font-size: 16px;">#</span>
+              <input type="text" id="wm-input-event-num" class="form-control" value="1001" placeholder="Ex: 1001" style="padding-left: 28px; font-size: 15px; font-weight: 800;">
+            </div>
+          </div>
+
+          <!-- Logo da Pista (Vem antes do Nome da Pista) -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label style="font-weight: 700; margin-bottom: 6px; display: block;">Logo da Pista</label>
+            <div class="wm-track-selection-grid" id="wm-track-selector">
+              
+              <!-- Opção 1: Sol Nascente (Primeiro) -->
+              <div class="wm-track-card active" id="card-track-sol" data-track-id="sol_nascente" data-track-name="Track Sol Nascente - Yamanashi / Japão" title="Track Sol Nascente - Yamanashi / Japão">
+                <img src="assets/track_sol_nascente.png" alt="Sol Nascente" class="wm-track-card-img">
+                <div class="wm-track-card-info">
+                  <div class="wm-track-card-name">Sol Nascente</div>
+                  <div class="wm-track-card-loc">Yamanashi / Japão</div>
+                </div>
+              </div>
+
+              <!-- Opção 2: Fonte da Vida (Segundo) -->
+              <div class="wm-track-card" id="card-track-fonte" data-track-id="fonte_da_vida" data-track-name="Track Fonte da Vida - Aichi / Japão" title="Track Fonte da Vida - Aichi / Japão">
+                <img src="assets/track_fonte_da_vida.png" alt="Fonte da Vida" class="wm-track-card-img">
+                <div class="wm-track-card-info">
+                  <div class="wm-track-card-name">Fonte da Vida</div>
+                  <div class="wm-track-card-loc">Aichi / Japão</div>
+                </div>
+              </div>
+
+              <!-- Opção 3: Enviar Arquivo Personalizado -->
+              <label for="wm-input-track-badge" class="wm-track-card" id="card-track-custom" title="Enviar outro arquivo de logo">
+                <div class="wm-track-upload-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="wm-track-card-info">
+                  <div class="wm-track-card-name" id="wm-custom-card-label">Outro Selo</div>
+                  <div class="wm-track-card-loc">Enviar arquivo...</div>
+                </div>
+                <input type="file" id="wm-input-track-badge" accept="image/*" style="display:none;">
+              </label>
+
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="wm-input-track-name" style="font-weight: 700;">Nome da Pista / Local</label>
+            <input type="text" id="wm-input-track-name" class="form-control" value="Track Sol Nascente - Yamanashi / Japão" placeholder="Ex: Track Sol Nascente - Yamanashi / Japão">
+            <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px;">Preenchido automaticamente ao escolher a logo, mas editável se desejar.</div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label for="wm-input-event-date" style="font-weight: 700;">Data do Evento</label>
+            <input type="text" id="wm-input-event-date" class="form-control" value="19 a 22 de setembro de 2026" placeholder="Ex: 19 a 22 de setembro de 2026">
+          </div>
+
+          <!-- Opção do Gradiente Escuro -->
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 12px;">
+            <label style="display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 0;">
+              <input type="checkbox" id="wm-cfg-dark-gradient" checked style="accent-color: var(--accent-color); width: 16px; height: 16px; cursor: pointer;">
+              <span>Incluir gradiente escuro suave no rodapé (para proteger a leitura em fundos claros)</span>
+            </label>
+          </div>
+
+          <div style="margin-top: 14px; font-size: 11px; color: var(--text-muted); line-height: 1.5; background: rgba(255,102,0,0.04); border: 1px solid rgba(255,102,0,0.15); border-radius: 8px; padding: 8px 10px;">
+            <b>ℹ️ Logos Oficiais Fixos:</b> A bandeira <b>Legendários Japão</b> (topo direito) e o emblema <b>DESAFIO TOP</b> (rodapé) já vêm incluídos e alinhados automaticamente com a fonte <b>NEXA</b>.
+          </div>
+
+        </div>
+
+        <!-- Coluna Direita: Preview ao Vivo -->
+        <div class="wm-gen-preview-col">
+          <div class="wm-gen-preview-header">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary);">Pré-visualização:</span>
+            <div class="wm-gen-format-tabs" id="wm-gen-tabs">
+              <button type="button" class="wm-tab-btn active" data-fmt="vertical">4:5 Post</button>
+              <button type="button" class="wm-tab-btn" data-fmt="horizontal">5:4 Post</button>
+              <button type="button" class="wm-tab-btn" data-fmt="reels">9:16 Story</button>
+              <button type="button" class="wm-tab-btn" data-fmt="wide">16:9 Wide</button>
+            </div>
+          </div>
+
+          <div class="wm-preview-stage" id="wm-preview-stage">
+            <canvas id="wm-preview-canvas"></canvas>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 10.5px; color: var(--text-muted);">
+            <span id="wm-preview-dims-label">Dimensão final: 3648 x 4560 px</span>
+            <span>Tipografia oficial NEXA &bull; Alta resolução</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer com Ações -->
+      <div class="settings-modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button id="btn-cancel-wm-gen" class="settings-btn-reset">Cancelar</button>
+        
+        <div style="display: flex; gap: 10px;">
+          <button id="btn-download-wm-pngs" class="btn" style="
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #fff; font-size: 12px; font-weight: 700;
+            padding: 8px 14px; border-radius: 8px; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px;
+          " title="Baixar os 4 arquivos PNG gerados em um arquivo ZIP">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Baixar 4 PNGs (.zip)</span>
+          </button>
+
+          <button id="btn-apply-wm-gen" class="settings-btn-save" style="
+            background: linear-gradient(135deg, var(--accent-color), #ff3300);
+            box-shadow: 0 0 16px var(--accent-glow);
+            padding: 9px 24px; font-size: 13.5px; font-weight: 800; min-width: 110px;
+          ">
+            ✓ Aplicar
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- Script principal carregado diferido -->
+  <script src="app.js?v=12.8" defer></script>
+</body>
+</html>
