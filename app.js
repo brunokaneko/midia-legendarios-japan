@@ -96,7 +96,7 @@ const CONFIG_DEFAULTS = {
   maxZoomGroup:            1.20,  // Permite melhor aproveitamento de grupos sem esmagar laterais
   subjectHeightTarget:     0.75,
   faceThirdPosition:       0.33,
-  blurThreshold:           24,    // Calibrado para o operador Tenengrad de alta precisão no canvas 1024px
+  blurThreshold:           12,    // Calibrado com normalização de contraste: rejeita apenas borrões severos reais
   darkThreshold:           14,    // Tolerante: só rejeita fotos genuinamente irrecuperáveis
   brightThreshold:         245,   // Tolerante: só rejeita fotos totalmente queimadas
   faceDetectionEnabled:    true,  // FaceDetector BlazeFace ativado como apoio/fallback para retratos
@@ -913,37 +913,59 @@ function calculateSharpness(pixels, width, height, startX, startY, spanW, spanH)
   const x1 = Math.max(x0 + 2, Math.min(width - 2, Math.round(startX + spanW)));
   const y1 = Math.max(y0 + 2, Math.min(height - 2, Math.round(startY + spanH)));
 
+  let minVal = 255;
+  let maxVal = 0;
+  let totalPixels = 0;
+
+  // 1. Medição da faixa dinâmica local para normalização de contraste
+  for (let y = y0; y < y1; y++) {
+    const rowOffset = y * width;
+    for (let x = x0; x < x1; x++) {
+      const v = pixels[rowOffset + x];
+      if (v < minVal) minVal = v;
+      if (v > maxVal) maxVal = v;
+      totalPixels++;
+    }
+  }
+
+  if (totalPixels < 10) return 40;
+  const localRange = maxVal - minVal;
+  // Se a região for completamente plana/sem textura
+  if (localRange < 10) return 20;
+
+  // Fator de escala para normalizar o contraste local para 0-255:
+  // Isso DESACOPLA totalmente a iluminação da nitidez! Fotos escuras em foco mantêm arestas normalizadas nítidas.
+  const normScale = 255.0 / Math.max(28, localRange);
+
   let sumGradSq = 0;
   let edgePixelCount = 0;
-  let totalPixels = 0;
-  // Limiar de corte de ruído digital (ISO alto / granulação típica de câmeras em pouca luz)
-  const NOISE_THRESHOLD = 16;
+  // Limiar de corte de ruído sobre a escala normalizada
+  const NOISE_THRESHOLD = 20;
 
   for (let y = y0; y < y1; y++) {
     const rowOffset = y * width;
     const topOffset = (y - 1) * width;
     const btmOffset = (y + 1) * width;
     for (let x = x0; x < x1; x++) {
-      totalPixels++;
-      // Operador Sobel 3x3 para captura robusta de arestas ópticas reais
+      // Sobel 3x3
       const gx = (pixels[topOffset + x + 1] + 2 * pixels[rowOffset + x + 1] + pixels[btmOffset + x + 1])
                - (pixels[topOffset + x - 1] + 2 * pixels[rowOffset + x - 1] + pixels[btmOffset + x - 1]);
 
       const gy = (pixels[btmOffset + x - 1] + 2 * pixels[btmOffset + x] + pixels[btmOffset + x + 1])
-               - (pixels[topOffset + x - 1] + 2 * pixels[topOffset + x] + pixels[topOffset + x + 1]);
+               - (pixels[topOffset + x - 1] + 2 * pixels[topOffset + x] + pixels[btmOffset + x + 1]);
 
-      const gradMag = Math.hypot(gx, gy);
-      if (gradMag > NOISE_THRESHOLD) {
-        sumGradSq += gradMag * gradMag;
+      const rawGrad = Math.hypot(gx, gy);
+      const normGrad = rawGrad * normScale;
+
+      if (normGrad > NOISE_THRESHOLD) {
+        sumGradSq += normGrad * normGrad;
         edgePixelCount++;
       }
     }
   }
 
-  if (totalPixels < 10) return 40;
   const edgeDensity = edgePixelCount / totalPixels;
   const avgEnergy = edgePixelCount > 0 ? (sumGradSq / edgePixelCount) : 0;
-  // Índice Tenengrad calibrado para discriminar foco real de borrão e ruído
   const sharpnessIndex = Math.sqrt(avgEnergy) * Math.sqrt(edgeDensity);
   return sharpnessIndex;
 }
@@ -1034,23 +1056,36 @@ function analyzeQuality(ctx, width, height, faces, pixels, poses) {
     const primary = poses[0];
     const hSize = primary.headSize || 60;
     
-    // Focar a checagem de nitidez na região dos olhos/face
+    // 1. Região dos Olhos / Terço Superior da Face
     const eyeX = (primary.eyeCenterX || primary.headX) - hSize * 0.55;
     const eyeY = (primary.eyeCenterY || (primary.headY - hSize * 0.15)) - hSize * 0.35;
     const eyeW = hSize * 1.1;
     const eyeH = hSize * 0.7;
+    const sharpEyes = calculateSharpness(pixels, width, height, eyeX, eyeY, eyeW, eyeH);
 
-    sharpness = calculateSharpness(pixels, width, height, eyeX, eyeY, eyeW, eyeH);
-
-    // Medir exposição no rosto e tronco da pessoa
+    // 2. Região Completa da Cabeça (Boca, Nariz, Cabelo, Barba)
     const faceX = primary.headX - hSize * 0.6;
     const faceY = primary.headY - hSize * 0.6;
     const faceW = hSize * 1.2;
-    const faceH = hSize * 1.5;
+    const faceH = hSize * 1.4;
+    const sharpFace = calculateSharpness(pixels, width, height, faceX, faceY, faceW, faceH);
+
+    // 3. Região do Tronco / Peito (onde roupas, emblemas e crachás têm alto contraste)
+    const torsoX = (primary.shoulderX || primary.headX) - hSize * 0.9;
+    const torsoY = (primary.shoulderY || (primary.headY + hSize * 0.8)) - hSize * 0.2;
+    const torsoW = hSize * 1.8;
+    const torsoH = hSize * 1.2;
+    const sharpTorso = calculateSharpness(pixels, width, height, torsoX, torsoY, torsoW, torsoH);
+
+    // O sujeito está em foco se QUALQUER uma das regiões principais estiver nítida
+    // Evita falsos positivos se os olhos estiverem sob a sombra de um boné/chapéu
+    sharpness = Math.max(sharpEyes, sharpFace, sharpTorso);
+
+    // Medir exposição no rosto e tronco da pessoa
     exposure = calculateBrightness(ctx, width, height, faceX, faceY, faceW, faceH);
 
     // Identificar contra-luz (céu/fundo muito claro e pessoa na sombra)
-    if (overallExposure.meanLuminance > 140 && exposure.meanLuminance < 95) {
+    if (overallExposure.meanLuminance > 135 && exposure.meanLuminance < 95) {
       isBacklit = true;
     }
   } else if (faces && faces.length > 0) {
@@ -1068,7 +1103,7 @@ function analyzeQuality(ctx, width, height, faces, pixels, poses) {
     sharpness = calculateSharpness(pixels, width, height, fx, fy, fw, fh);
     exposure = calculateBrightness(ctx, width, height, fx, fy, fw, fh);
 
-    if (overallExposure.meanLuminance > 140 && exposure.meanLuminance < 95) {
+    if (overallExposure.meanLuminance > 135 && exposure.meanLuminance < 95) {
       isBacklit = true;
     }
   } else {
@@ -1093,21 +1128,24 @@ function analyzeQuality(ctx, width, height, faces, pixels, poses) {
 
   const brightness = Math.round(exposure.meanLuminance);
 
+  // Limiar de nitidez dinâmico: em fotos escuras, a tolerância é ainda maior para nunca confundir baixa luz com falta de foco
+  const effectiveBlurThreshold = brightness < 65 ? Math.max(7, CONFIG.blurThreshold - 4) : CONFIG.blurThreshold;
+
   // Critérios de rejeição:
-  // 1. Nitidez óptica insuficiente (desfocada ou movimento de câmera forte)
-  if (sharpness < CONFIG.blurThreshold) {
+  // 1. Nitidez óptica insuficiente (somente borrão óptico severo real)
+  if (sharpness < effectiveBlurThreshold) {
     isBlurry = true;
     reason = "Desfocada (sujeito sem nitidez)";
   }
 
   // 2. Subexposição irrecuperável (somente se muito escura E com perda total de textura)
-  if (brightness < CONFIG.darkThreshold && exposure.shadowClipRatio > 0.65) {
+  if (brightness < CONFIG.darkThreshold && exposure.shadowClipRatio > 0.70) {
     isTooDark = true;
     reason = "Subexposta (escura demais e sem textura)";
   }
 
   // 3. Superexposição irrecuperável (somente se sujeito estiver com pele totalmente queimada)
-  if (brightness > CONFIG.brightThreshold && exposure.highlightClipRatio > 0.50) {
+  if (brightness > CONFIG.brightThreshold && exposure.highlightClipRatio > 0.55) {
     isTooBright = true;
     reason = "Superexposta (sujeito queimado)";
   }
@@ -2451,13 +2489,20 @@ function openEditor(index) {
     editorSaturationVal.innerText = cSaturation > 0 ? `+${cSaturation}` : cSaturation;
   }
 
-  // --- Auto-rejection banner ---
-  if (autoRejectionRow) {
-    if (data.confidence === "rejected") {
-      autoRejectionRow.style.display = "flex";
+  // --- Auto-rejection banner (Sempre visível com altura fixa para não deslocar os botões abaixo) ---
+  if (autoRejectionRow && autoRejectionDisplay) {
+    autoRejectionRow.style.display = "flex";
+    const qualityLabel = document.getElementById("auto-quality-label");
+    if (data.confidence === "rejected" || data.status === "rejected") {
+      autoRejectionRow.style.borderTop = "1px dashed rgba(255,77,77,0.35)";
+      if (qualityLabel) qualityLabel.style.color = "#ff4d4d";
+      autoRejectionDisplay.style.color = "#ff4d4d";
       autoRejectionDisplay.innerText = data.rejectionReason || "Qualidade Baixa";
     } else {
-      autoRejectionRow.style.display = "none";
+      autoRejectionRow.style.borderTop = "1px solid rgba(255,255,255,0.08)";
+      if (qualityLabel) qualityLabel.style.color = "var(--text-secondary)";
+      autoRejectionDisplay.style.color = "#4ade80";
+      autoRejectionDisplay.innerText = "✓ Aprovada (Nítida)";
     }
   }
 
