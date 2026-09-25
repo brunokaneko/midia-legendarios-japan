@@ -92,15 +92,15 @@ const CONFIG_DEFAULTS = {
   faceMinConfidence:       0.20,
   landmarkVisThreshold:    0.45,
   poseConfidenceFilter:    0.25,
-  maxZoomSolo:             1.25,
-  maxZoomGroup:            1.15,
+  maxZoomSolo:             1.45,  // Permite aproximar sujeitos distantes mantendo máxima qualidade
+  maxZoomGroup:            1.20,  // Permite melhor aproveitamento de grupos sem esmagar laterais
   subjectHeightTarget:     0.75,
   faceThirdPosition:       0.33,
-  blurThreshold:           30,
-  darkThreshold:           18,
-  brightThreshold:         232,
-  faceDetectionEnabled:    true,   // FaceDetector BlazeFace ativado como apoio/fallback para retratos
-  showAnnotations:         false,  // Visualizacao de marcacoes faciais/esqueleto (desativada por padrao)
+  blurThreshold:           24,    // Calibrado para o operador Tenengrad de alta precisão no canvas 1024px
+  darkThreshold:           14,    // Tolerante: só rejeita fotos genuinamente irrecuperáveis
+  brightThreshold:         245,   // Tolerante: só rejeita fotos totalmente queimadas
+  faceDetectionEnabled:    true,  // FaceDetector BlazeFace ativado como apoio/fallback para retratos
+  showAnnotations:         false, // Visualizacao de marcacoes faciais/esqueleto (desativada por padrao)
 };
 let CONFIG = { ...CONFIG_DEFAULTS };
 
@@ -823,6 +823,42 @@ function analyzePoseLandmarks(landmarks, imgWidth, imgHeight) {
     getVis(rHip)
   ];
   const confidence = keyVisibilities.reduce((a, b) => a + b, 0) / keyVisibilities.length;
+
+  // 3. Cálculo de Inclinação / Ângulo do Sujeito (Auto-Leveling)
+  let tiltAngle = 0.0;
+  let hasTiltAngle = false;
+  if (hasEyes) {
+    const dx = (lEye.x - rEye.x) * imgWidth;
+    const dy = (lEye.y - rEye.y) * imgHeight;
+    const eyeDist = Math.hypot(dx, dy);
+    if (eyeDist > 15) {
+      const eyeAngle = (Math.atan2(dy, dx) * 180) / Math.PI;
+      // Ângulos suaves de desnível de câmera (entre -12° e +12°)
+      if (Math.abs(eyeAngle) <= 12.0) {
+        tiltAngle = eyeAngle;
+        hasTiltAngle = true;
+      }
+    }
+  }
+
+  if (hasShoulders) {
+    const sDx = (lShoulder.x - rShoulder.x) * imgWidth;
+    const sDy = (lShoulder.y - rShoulder.y) * imgHeight;
+    const sDist = Math.hypot(sDx, sDy);
+    if (sDist > 30) {
+      const shoulderAngle = (Math.atan2(sDy, sDx) * 180) / Math.PI;
+      if (Math.abs(shoulderAngle) <= 12.0) {
+        if (hasTiltAngle) {
+          if (Math.sign(shoulderAngle) === Math.sign(tiltAngle) || Math.abs(shoulderAngle - tiltAngle) < 5.0) {
+            tiltAngle = (tiltAngle * 0.65) + (shoulderAngle * 0.35);
+          }
+        } else {
+          tiltAngle = shoulderAngle;
+          hasTiltAngle = true;
+        }
+      }
+    }
+  }
   
   return {
     x: boxX,
@@ -850,6 +886,9 @@ function analyzePoseLandmarks(landmarks, imgWidth, imgHeight) {
 
     hasFeet: hasFeet,
     lowestFootY: lowestFootY,
+
+    hasTiltAngle: hasTiltAngle,
+    tiltAngle: tiltAngle,
     
     confidence: confidence,
     landmarks: landmarks // Salvar para desenho do esqueleto se necessário
@@ -867,41 +906,46 @@ function getGrayscalePixels(ctx, width, height) {
   return pixels;
 }
 
-// Quality checking algorithms (Blur and Exposure)
+// Quality checking algorithms (Blur, Exposure and Color Grading Analysis)
 function calculateSharpness(pixels, width, height, startX, startY, spanW, spanH) {
-  let count = 0;
-  let mean = 0;
-  let M2 = 0;
-
   const x0 = Math.max(1, Math.min(width - 2, Math.round(startX)));
   const y0 = Math.max(1, Math.min(height - 2, Math.round(startY)));
   const x1 = Math.max(x0 + 2, Math.min(width - 2, Math.round(startX + spanW)));
   const y1 = Math.max(y0 + 2, Math.min(height - 2, Math.round(startY + spanH)));
 
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
-      const idx = y * width + x;
-      // Laplacian 3x3 kernel:
-      // [ 0  1  0 ]
-      // [ 1 -4  1 ]
-      // [ 0  1  0 ]
-      const val = pixels[idx];
-      const top = pixels[idx - width];
-      const bottom = pixels[idx + width];
-      const left = pixels[idx - 1];
-      const right = pixels[idx + 1];
-      const laplacian = top + bottom + left + right - 4 * val;
+  let sumGradSq = 0;
+  let edgePixelCount = 0;
+  let totalPixels = 0;
+  // Limiar de corte de ruído digital (ISO alto / granulação típica de câmeras em pouca luz)
+  const NOISE_THRESHOLD = 16;
 
-      count++;
-      const delta = laplacian - mean;
-      mean += delta / count;
-      const delta2 = laplacian - mean;
-      M2 += delta * delta2;
+  for (let y = y0; y < y1; y++) {
+    const rowOffset = y * width;
+    const topOffset = (y - 1) * width;
+    const btmOffset = (y + 1) * width;
+    for (let x = x0; x < x1; x++) {
+      totalPixels++;
+      // Operador Sobel 3x3 para captura robusta de arestas ópticas reais
+      const gx = (pixels[topOffset + x + 1] + 2 * pixels[rowOffset + x + 1] + pixels[btmOffset + x + 1])
+               - (pixels[topOffset + x - 1] + 2 * pixels[rowOffset + x - 1] + pixels[btmOffset + x - 1]);
+
+      const gy = (pixels[btmOffset + x - 1] + 2 * pixels[btmOffset + x] + pixels[btmOffset + x + 1])
+               - (pixels[topOffset + x - 1] + 2 * pixels[topOffset + x] + pixels[topOffset + x + 1]);
+
+      const gradMag = Math.hypot(gx, gy);
+      if (gradMag > NOISE_THRESHOLD) {
+        sumGradSq += gradMag * gradMag;
+        edgePixelCount++;
+      }
     }
   }
 
-  if (count < 2) return 0;
-  return M2 / (count - 1);
+  if (totalPixels < 10) return 40;
+  const edgeDensity = edgePixelCount / totalPixels;
+  const avgEnergy = edgePixelCount > 0 ? (sumGradSq / edgePixelCount) : 0;
+  // Índice Tenengrad calibrado para discriminar foco real de borrão e ruído
+  const sharpnessIndex = Math.sqrt(avgEnergy) * Math.sqrt(edgeDensity);
+  return sharpnessIndex;
 }
 
 function calculateBrightness(ctx, width, height, startX, startY, spanW, spanH) {
@@ -913,33 +957,104 @@ function calculateBrightness(ctx, width, height, startX, startY, spanW, spanH) {
   try {
     const imgData = ctx.getImageData(x0, y0, w, h);
     const data = imgData.data;
-    let totalLuminance = 0;
     const pixelCount = w * h;
+
+    let totalLuminance = 0;
+    let crushedBlacks = 0;   // < 8 (preto absoluto empastado sem detalhe)
+    let blownHighlights = 0; // > 248 (branco puro queimado)
+    let rSum = 0, gSum = 0, bSum = 0;
+    let midtoneCount = 0;
 
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i+1];
       const b = data[i+2];
-      // ITU-R BT.709 formula
+      // Luminância ponderada ITU-R BT.709
       const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       totalLuminance += luminance;
+
+      if (luminance < 8) {
+        crushedBlacks++;
+      } else if (luminance > 248) {
+        blownHighlights++;
+      } else if (luminance >= 35 && luminance <= 220) {
+        midtones++;
+        rSum += r;
+        gSum += g;
+        bSum += b;
+        midtoneCount++;
+      }
     }
-    return totalLuminance / pixelCount;
+
+    const meanLuminance = totalLuminance / pixelCount;
+    const shadowClipRatio = crushedBlacks / pixelCount;
+    const highlightClipRatio = blownHighlights / pixelCount;
+
+    // Estimativa de Balanço de Branco (AWB) em tons médios
+    let colorCast = "neutral";
+    if (midtoneCount > 30) {
+      const avgR = rSum / midtoneCount;
+      const avgG = gSum / midtoneCount;
+      const avgB = bSum / midtoneCount;
+      const avgM = (avgR + avgG + avgB) / 3 || 1;
+      if (avgR / avgM > 1.25 && avgB / avgM < 0.85) colorCast = "warm";
+      else if (avgB / avgM > 1.25 && avgR / avgM < 0.85) colorCast = "cool";
+    }
+
+    return {
+      meanLuminance: meanLuminance,
+      shadowClipRatio: shadowClipRatio,
+      highlightClipRatio: highlightClipRatio,
+      colorCast: colorCast
+    };
   } catch (err) {
-    return 127;
+    return {
+      meanLuminance: 127,
+      shadowClipRatio: 0,
+      highlightClipRatio: 0,
+      colorCast: "neutral"
+    };
   }
 }
 
-function analyzeQuality(ctx, width, height, faces, pixels) {
+function analyzeQuality(ctx, width, height, faces, pixels, poses) {
   let isBlurry = false;
   let isTooDark = false;
   let isTooBright = false;
+  let isBacklit = false;
   let reason = "";
   let sharpness = 0;
-  let brightness = 127;
+  let exposure = { meanLuminance: 127, shadowClipRatio: 0, highlightClipRatio: 0, colorCast: "neutral" };
 
-  if (faces && faces.length > 0) {
-    // Check quality specifically on the primary subject (the largest face)
+  // Medir iluminação global da cena para detecção de silhueta/contra-luz
+  const overallExposure = calculateBrightness(ctx, width, height, 0, 0, width, height);
+
+  if (poses && poses.length > 0) {
+    // Sujeito principal detectado pelo Pose Landmarker
+    const primary = poses[0];
+    const hSize = primary.headSize || 60;
+    
+    // Focar a checagem de nitidez na região dos olhos/face
+    const eyeX = (primary.eyeCenterX || primary.headX) - hSize * 0.55;
+    const eyeY = (primary.eyeCenterY || (primary.headY - hSize * 0.15)) - hSize * 0.35;
+    const eyeW = hSize * 1.1;
+    const eyeH = hSize * 0.7;
+
+    sharpness = calculateSharpness(pixels, width, height, eyeX, eyeY, eyeW, eyeH);
+
+    // Medir exposição no rosto e tronco da pessoa
+    const faceX = primary.headX - hSize * 0.6;
+    const faceY = primary.headY - hSize * 0.6;
+    const faceW = hSize * 1.2;
+    const faceH = hSize * 1.5;
+    exposure = calculateBrightness(ctx, width, height, faceX, faceY, faceW, faceH);
+
+    // Identificar contra-luz (céu/fundo muito claro e pessoa na sombra)
+    if (overallExposure.meanLuminance > 140 && exposure.meanLuminance < 95) {
+      isBacklit = true;
+    }
+  } else if (faces && faces.length > 0) {
+    // Sujeito detectado via FaceDetector fallback
     const primary = faces.slice().sort((a, b) => b[2] - a[2])[0];
     const y = primary[0];
     const x = primary[1];
@@ -951,38 +1066,62 @@ function analyzeQuality(ctx, width, height, faces, pixels) {
     const fh = r * 2;
 
     sharpness = calculateSharpness(pixels, width, height, fx, fy, fw, fh);
-    brightness = calculateBrightness(ctx, width, height, fx, fy, fw, fh);
-  } else {
-    // Check central region of decoration/detail photo
-    const cx = width * 0.2;
-    const cy = height * 0.2;
-    const cw = width * 0.6;
-    const ch = height * 0.6;
+    exposure = calculateBrightness(ctx, width, height, fx, fy, fw, fh);
 
-    sharpness = calculateSharpness(pixels, width, height, cx, cy, cw, ch);
-    brightness = calculateBrightness(ctx, width, height, cx, cy, cw, ch);
+    if (overallExposure.meanLuminance > 140 && exposure.meanLuminance < 95) {
+      isBacklit = true;
+    }
+  } else {
+    // Foto sem pessoas (decoração, troféus, paisagens, detalhes da pista)
+    // Avaliar 5 zonas de composição fotográfica (regra dos terços) e usar a zona mais nítida
+    const zones = [
+      { x: width * 0.25, y: height * 0.25, w: width * 0.50, h: height * 0.50 },
+      { x: width * 0.15, y: height * 0.15, w: width * 0.35, h: height * 0.35 },
+      { x: width * 0.50, y: height * 0.15, w: width * 0.35, h: height * 0.35 },
+      { x: width * 0.15, y: height * 0.50, w: width * 0.35, h: height * 0.35 },
+      { x: width * 0.50, y: height * 0.50, w: width * 0.35, h: height * 0.35 }
+    ];
+
+    let maxSharp = 0;
+    zones.forEach(z => {
+      const s = calculateSharpness(pixels, width, height, z.x, z.y, z.w, z.h);
+      if (s > maxSharp) maxSharp = s;
+    });
+    sharpness = maxSharp;
+    exposure = calculateBrightness(ctx, width, height, width * 0.15, height * 0.15, width * 0.70, height * 0.70);
   }
 
-  // Blurry threshold: Lap Variance < 30 on 300px scale
+  const brightness = Math.round(exposure.meanLuminance);
+
+  // Critérios de rejeição:
+  // 1. Nitidez óptica insuficiente (desfocada ou movimento de câmera forte)
   if (sharpness < CONFIG.blurThreshold) {
     isBlurry = true;
     reason = "Desfocada (sujeito sem nitidez)";
   }
 
-  // Exposure thresholds:
-  if (brightness < CONFIG.darkThreshold) {
+  // 2. Subexposição irrecuperável (somente se muito escura E com perda total de textura)
+  if (brightness < CONFIG.darkThreshold && exposure.shadowClipRatio > 0.65) {
     isTooDark = true;
-    reason = "Subexposta (muito escura)";
-  } else if (brightness > CONFIG.brightThreshold) {
+    reason = "Subexposta (escura demais e sem textura)";
+  }
+
+  // 3. Superexposição irrecuperável (somente se sujeito estiver com pele totalmente queimada)
+  if (brightness > CONFIG.brightThreshold && exposure.highlightClipRatio > 0.50) {
     isTooBright = true;
-    reason = "Superexposta (muito clara)";
+    reason = "Superexposta (sujeito queimado)";
   }
 
   return {
     rejected: isBlurry || isTooDark || isTooBright,
     reason: reason,
     sharpness: Math.round(sharpness),
-    brightness: Math.round(brightness)
+    brightness: brightness,
+    overallBrightness: Math.round(overallExposure.meanLuminance),
+    shadowClipRatio: exposure.shadowClipRatio,
+    highlightClipRatio: exposure.highlightClipRatio,
+    isBacklit: isBacklit,
+    colorCast: exposure.colorCast
   };
 }
 
@@ -1094,6 +1233,13 @@ function computeSmartCrop(imgWidth, imgHeight, targetRatio, poses, orientation) 
       const primaryPose = scoredPoses[0].pose;
       const maxSaliency = scoredPoses[0].saliency;
 
+      // 1.1 AUTO-NIVELAMENTO DO HORIZONTE E SUJEITO (AUTO-ROTATE)
+      // Se a pose principal tiver desnível de câmera/cabeça detectado (entre -12° e +12°)
+      if (primaryPose.hasTiltAngle && Math.abs(primaryPose.tiltAngle) >= 0.5 && Math.abs(primaryPose.tiltAngle) <= 12.0) {
+        // Compensação com sinal oposto para desentortar e nivelar a foto
+        autoRotate = Math.round((-primaryPose.tiltAngle) * 10) / 10;
+      }
+
       // 2. FILTRAR TRANSEUNTES / PASSANTES ACIDENTAIS NO FUNDO
       // Se houver alguém no fundo com menos de 15% da saliência do sujeito principal, ignorar no cálculo de grupo
       const mainPoses = scoredPoses
@@ -1132,24 +1278,31 @@ function computeSmartCrop(imgWidth, imgHeight, targetRatio, poses, orientation) 
       // 4. AUTO-ZOOM DINÂMICO CONSCIENTE DA COMPOSIÇÃO
       if (!isGroup) {
         // Sujeito individual:
-        // Se a pessoa for de corpo inteiro ou já preencher mais de 58% da altura, não dá zoom para manter respiro
         const personHeightRatio = primaryPose.height / cropHeight;
-        if (primaryPose.hasFeet || personHeightRatio > 0.58) {
-          autoZoom = 1.0;
+        if (primaryPose.hasFeet && primaryPose.lowestFootY) {
+          // Corpo inteiro: se a pessoa estiver muito distante (ocupando < 56% da altura do quadro),
+          // aplica zoom equilibrado para valorizar a pessoa, mantendo sapatos e boné intactos
+          if (personHeightRatio < 0.56) {
+            const targetHeight = cropHeight * 0.70;
+            const rawZoom = targetHeight / Math.max(1, primaryPose.height);
+            autoZoom = Math.min(1.25, Math.max(1.0, rawZoom));
+          } else {
+            autoZoom = 1.0;
+          }
         } else {
-          // Retrato fechado / Meio-corpo: zoom moderado
+          // Retrato fechado / Meio-corpo: zoom proporcional até maxZoomSolo (1.45x)
           const targetHeight = cropHeight * CONFIG.subjectHeightTarget;
           const rawZoom = targetHeight / Math.max(1, primaryPose.height);
           autoZoom = Math.min(CONFIG.maxZoomSolo, Math.max(1.0, rawZoom));
         }
       } else {
-        // Grupo de pessoas (casal, família, equipe):
-        // Se a largura do grupo já ocupa mais de 70% da largura do corte, manter zoom 1.0 para não prensar ombros
+        // Grupo de pessoas (dupla, família, equipe):
+        // Se a largura do grupo já ocupa mais de 72% da largura do corte, mantém zoom 1.0 para não prensar ombros
         const groupOccupancy = groupWidth / cropWidth;
-        if (groupOccupancy > 0.70) {
+        if (groupOccupancy > 0.72) {
           autoZoom = 1.0;
         } else {
-          const targetWidth = cropWidth * 0.85;
+          const targetWidth = cropWidth * 0.84;
           const rawZoom = targetWidth / Math.max(1, groupWidth);
           autoZoom = Math.min(CONFIG.maxZoomGroup, Math.max(1.0, rawZoom));
         }
@@ -1188,17 +1341,17 @@ function computeSmartCrop(imgWidth, imgHeight, targetRatio, poses, orientation) 
       const targetEyePercent = isStories ? 0.39 : 0.36;
 
       // Respiro superior (Headroom) seguro e generoso:
-      // As marcas d'água no topo ocupam ~12-14% da foto.
-      // Logo, o topo da cabeça/boné precisa ficar a pelo menos 16% do teto para não colidir com logos!
-      const desiredHeadroom = cropHeight * (isStories ? 0.19 : 0.17); // 17% a 19%
-      const minHeadroom     = cropHeight * (isStories ? 0.16 : 0.14); // 14% a 16%
-      const maxHeadroom     = cropHeight * (isStories ? 0.25 : 0.22); // 22% a 25%
+      // As marcas d'água no topo (TOP XX, Sol Nascente / Fonte da Vida) ocupam ~14% da foto.
+      // Logo, o topo da cabeça/boné precisa ficar a pelo menos 16-17% do teto para nunca colidir com badges!
+      const desiredHeadroom = cropHeight * (isStories ? 0.20 : 0.18); // 18% a 20%
+      const minHeadroom     = cropHeight * (isStories ? 0.17 : 0.16); // 16% a 17%
+      const maxHeadroom     = cropHeight * (isStories ? 0.26 : 0.23); // 23% a 26%
 
       // Ponto de referência do topo da cabeça/boné mais alto:
       const refHeadTop = Math.min(highestHeadTop, primaryPose.headY - (primaryPose.headSize || 60) * 1.55);
 
-      // Uma foto só é considerada de corpo inteiro se o SUJEITO PRINCIPAL tiver pés visíveis e preencher >75% da altura
-      const isFullBody = Boolean(primaryPose.hasFeet && primaryPose.lowestFootY && (primaryPose.height / cropHeight > 0.75));
+      // Uma foto é considerada de corpo inteiro se o SUJEITO PRINCIPAL tiver pés visíveis
+      const isFullBody = Boolean(primaryPose.hasFeet && primaryPose.lowestFootY && (primaryPose.height / cropHeight > 0.60));
 
       if (!isFullBody) {
         // --- CENÁRIO: RETRATOS / MEIO-CORPO / CASAIS / GRUPOS ---
@@ -1206,7 +1359,6 @@ function computeSmartCrop(imgWidth, imgHeight, targetRatio, poses, orientation) 
         cropY = eyeY - (cropHeight * targetEyePercent);
 
         // 1. Garantir que a cabeça/boné NUNCA fique colada no teto nem encostando nas marcas d'água:
-        // Se cropY deixar o refHeadTop muito próximo do topo (menos que minHeadroom), abaixa o cropY:
         if (cropY > refHeadTop - minHeadroom) {
           cropY = refHeadTop - desiredHeadroom;
         }
@@ -1227,7 +1379,7 @@ function computeSmartCrop(imgWidth, imgHeight, targetRatio, poses, orientation) 
         cropY = refHeadTop - desiredHeadroom;
 
         // Se os pés do sujeito estiverem sendo cortados e houver margem para descer sem violar minHeadroom:
-        const footMargin = cropHeight * 0.04;
+        const footMargin = cropHeight * 0.045; // 4.5% de respiro seguro abaixo do solado
         const neededY = (primaryPose.lowestFootY + footMargin) - cropHeight;
         
         if (neededY > cropY) {
@@ -1777,21 +1929,61 @@ async function processImageFile(file) {
             }
           }
           
-          // Executar a análise de qualidade (Sharpness e Luminância) na miniatura original sem filtro
-          const quality = analyzeQuality(ctx, thumbWidth, thumbHeight, facesInThumb, getGrayscalePixels(ctx, thumbWidth, thumbHeight));
+          // Escalar poses para o canvas de detecção de alta resolução (1024px) para análise ultra-precisa de nitidez e exposição
+          const detectScaleX = detectWidth / renderWidth;
+          const detectScaleY = detectHeight / renderHeight;
+          const detectPoses = poses.map(p => ({
+            ...p,
+            headX: p.headX * detectScaleX,
+            headY: p.headY * detectScaleY,
+            headSize: (p.headSize || 50) * detectScaleX,
+            eyeCenterX: (p.eyeCenterX || p.headX) * detectScaleX,
+            eyeCenterY: (p.eyeCenterY || p.headY) * detectScaleY,
+            x: p.x * detectScaleX,
+            y: p.y * detectScaleY,
+            width: p.width * detectScaleX,
+            height: p.height * detectScaleY
+          }));
 
-          // Calcular ajustes automáticos de cor pré-carregados (transparente e ajustável pelo usuário)
-          let initialBrightness = 2; // Compensação padrão sutil
-          if (quality.brightness < 120) {
-            // Foto escura: compensação dinâmica para revelar rostos/detalhes
-            initialBrightness = Math.min(16, Math.round((120 - quality.brightness) * 0.18));
-          } else if (quality.brightness > 180) {
-            // Foto muito clara: redução dinâmica para preservar realces
-            initialBrightness = Math.max(-10, -Math.round((quality.brightness - 180) * 0.12));
+          // Executar a análise de qualidade óptica (Tenengrad Sobel e Histograma de Exposição Zonal) no canvas de 1024px
+          const detectGrayPixels = getGrayscalePixels(detectCtx, detectWidth, detectHeight);
+          const quality = analyzeQuality(detectCtx, detectWidth, detectHeight, facesInThumb, detectGrayPixels, detectPoses);
+
+          // CÁLCULO DE EXPOSIÇÃO, CONTRASTE E COR AUTOMÁTICA INTELIGENTE (Auto-Grading Profissional)
+          let initialBrightness = 2; // Padrão
+          let initialContrast = 5;
+          let initialSaturation = 6;
+
+          const subLum = quality.brightness || 120;
+
+          if (subLum < 118) {
+            // Foto subexposta ou sujeito na sombra: elevação com curva compensatória proporcional à falta de luz
+            const lumDeficit = 120 - subLum;
+            // Multiplicador calculado: ex. def=60 -> bVal=+26 (1.52x); def=90 -> bVal=+40 (1.80x)
+            initialBrightness = Math.min(50, Math.max(4, Math.round(lumDeficit * 0.44)));
+            // Contraste dinâmico: evita que sombras clareadas fiquem esbranquiçadas ou leitosas
+            initialContrast = Math.min(18, Math.round(5 + initialBrightness * 0.28));
+          } else if (subLum > 142) {
+            // Foto superexposta ou sol forte direto: atenuação suave de altas luzes
+            const lumExcess = subLum - 138;
+            initialBrightness = Math.max(-20, -Math.round(lumExcess * 0.32));
+            initialContrast = 4;
           }
 
-          const initialContrast = 4;   // Contraste sutil e profissional (+8%)
-          const initialSaturation = 5; // Saturação controlada e refinada para tons de pele naturais (+10%)
+          // Compensação de contra-luz (sujeito escuro com céu/fundo muito claro)
+          if (quality.isBacklit) {
+            initialBrightness = Math.min(52, initialBrightness + 8);
+            initialContrast = Math.min(20, initialContrast + 3);
+          }
+
+          // Saturação equilibrada e consciente do tom de pele natural
+          if (quality.colorCast === "warm") {
+            initialSaturation = 4; // Suave em ambientes quentes/amarelados
+          } else if (quality.colorCast === "cool") {
+            initialSaturation = 6; // Toque saudável em dias nublados ou sombra fria
+          } else {
+            initialSaturation = 6;
+          }
 
           // Calcular o Crop Inteligente Inicial com as poses detectadas
           const smartCrop = computeSmartCrop(renderWidth, renderHeight, targetRatio, poses, orientation);
@@ -2409,11 +2601,10 @@ function buildImageFilter(data) {
     finalSaturation = manualSaturation;
     finalBrightness = manualBrightness;
   } else {
-    // Se o Color Grading Automático estiver desativado, removemos os valores padrão do auto-grading (Contraste +8, Saturação +12)
-    // Mas mantemos as correções adicionais do usuário
-    finalContrast   = Math.max(0.1, 1.0 + ((data.colorContrast || 8) - 8) / 50);
-    finalSaturation = Math.max(0.0, 1.0 + ((data.colorSaturation || 12) - 12) / 50);
-    finalBrightness = manualBrightness;
+    // Se o Color Grading estiver desativado para esta foto, usa cores 100% originais
+    finalContrast   = 1.0;
+    finalSaturation = 1.0;
+    finalBrightness = 1.0;
   }
 
   // Garantir limites seguros para os filtros CSS
